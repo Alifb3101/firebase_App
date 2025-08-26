@@ -1,6 +1,6 @@
-
 import 'dart:developer';
 
+import 'package:firebase/home_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -25,9 +25,9 @@ class _AuthPageState extends State<AuthPage> {
         const SnackBar(content: Text("User Registered Successfully")),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
     }
   }
 
@@ -37,13 +37,14 @@ class _AuthPageState extends State<AuthPage> {
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Logged in Successfully")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Logged in Successfully")));
+      Navigator.push(context, MaterialPageRoute(builder: (context) => HomePage(),));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
     }
   }
 
@@ -64,8 +65,11 @@ class _AuthPageState extends State<AuthPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.lock_outline,
-                      size: 64, color: Colors.deepPurple),
+                  const Icon(
+                    Icons.lock_outline,
+                    size: 64,
+                    color: Colors.deepPurple,
+                  ),
                   const SizedBox(height: 16),
                   const Text(
                     "Welcome Back 👋",
@@ -174,20 +178,19 @@ class _GoogleAuthPageState extends State<GoogleAuthPage> {
         const SnackBar(content: Text("Logged in with Google Successfully")),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Google Sign-In Failed: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Google Sign-In Failed: $e")));
       log(e.toString());
     }
   }
 
-
   Future<void> signOutGoogle() async {
     await _googleSignIn.signOut();
     await _auth.signOut();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Signed out from Google")),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Signed out from Google")));
   }
 
   @override
@@ -202,14 +205,20 @@ class _GoogleAuthPageState extends State<GoogleAuthPage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
                 foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                   side: const BorderSide(color: Colors.grey),
                 ),
               ),
-              icon: Image.asset("assets/google_logo.png",
-                  height: 24, width: 24), // add google logo in assets
+              icon: Image.asset(
+                "assets/google_logo.png",
+                height: 24,
+                width: 24,
+              ), // add google logo in assets
               label: const Text("Sign in with Google"),
               onPressed: signInWithGoogle,
             ),
