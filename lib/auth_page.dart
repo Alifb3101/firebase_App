@@ -1,233 +1,209 @@
-import 'dart:developer';
-
-import 'package:firebase/home_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'home_page.dart';
+import 'mobile_auth_page.dart';
 
 class AuthPage extends StatefulWidget {
+  const AuthPage({super.key});
+
   @override
-  _AuthPageState createState() => _AuthPageState();
+  State<AuthPage> createState() => _AuthPageState();
 }
 
 class _AuthPageState extends State<AuthPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
 
-  Future<void> signUp() async {
-    try {
-      await _auth.createUserWithEmailAndPassword(
-        email: emailController.text.trim(),
-        password: passwordController.text.trim(),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("User Registered Successfully")),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: $e")));
-    }
-  }
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
-  Future<void> signIn() async {
+  bool isLogin = true; // toggle between sign-in and sign-up
+  bool isLoading = false;
+
+  // Sign in with Email + Password
+  Future<void> _signInWithEmail() async {
+    setState(() => isLoading = true);
     try {
       await _auth.signInWithEmailAndPassword(
-        email: emailController.text.trim(),
-        password: passwordController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
       );
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Logged in Successfully")));
-      Navigator.push(context, MaterialPageRoute(builder: (context) => HomePage(),));
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+
+      // Check if email verified
+      if (_auth.currentUser != null && !_auth.currentUser!.emailVerified) {
+        _showError("Please verify your email before signing in.");
+        await _auth.signOut();
+      } else {
+        _goToHome();
+      }
+    } on FirebaseAuthException catch (e) {
+      _showError(e.message ?? "Invalid email or password");
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Card(
-            elevation: 6,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.lock_outline,
-                    size: 64,
-                    color: Colors.deepPurple,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    "Welcome Back 👋",
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.deepPurple,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  TextField(
-                    controller: emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      labelText: "Email",
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: passwordController,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: "Password",
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: signIn,
-                      child: const Text(
-                        "Login",
-                        style: TextStyle(fontSize: 16, color: Colors.white),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: signUp,
-                    child: const Text(
-                      "Create an Account",
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.deepPurple,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+  // Sign up with Email + Password (Send OTP/Verification Email)
+  Future<void> _signUpWithEmail() async {
+    setState(() => isLoading = true);
+    try {
+      UserCredential userCred = await _auth.createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      // Send verification email
+      await userCred.user?.sendEmailVerification();
+
+      _showError("Verification email sent! Please check your inbox.");
+      await _auth.signOut();
+
+      // Switch back to login screen
+      setState(() => isLogin = true);
+    } on FirebaseAuthException catch (e) {
+      _showError(e.message ?? "Failed to sign up");
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  // Google Sign-in
+  Future<void> _signInWithGoogle() async {
+    setState(() => isLoading = true);
+    try {
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) return;
+
+      final GoogleSignInAuthentication googleAuth =
+      await googleUser.authentication;
+
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      await _auth.signInWithCredential(credential);
+
+      if (_auth.currentUser != null && !_auth.currentUser!.emailVerified) {
+        _showError("Please verify your Google email before signing in.");
+        await _auth.signOut();
+      } else {
+        _goToHome();
+      }
+    } catch (e) {
+      _showError("Google sign-in failed");
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  void _goToHome() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const HomePage()),
+    );
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message,
+            style: const TextStyle(color: Colors.white, fontSize: 16)),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(12),
       ),
     );
   }
-}
-
-class GoogleAuthPage extends StatefulWidget {
-  const GoogleAuthPage({super.key});
-
-  @override
-  State<GoogleAuthPage> createState() => _GoogleAuthPageState();
-}
-
-class _GoogleAuthPageState extends State<GoogleAuthPage> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
-
-  Future<void> signInWithGoogle() async {
-    try {
-      // 1. Initialize GoogleSignIn (required before authenticate())
-      await GoogleSignIn.instance.initialize();
-
-      // 2. Trigger the Google sign-in flow
-      final googleUser = await GoogleSignIn.instance.authenticate();
-      if (googleUser == null) return; // user canceled
-
-      // 3. Get authentication info
-      final googleAuth = googleUser.authentication;
-
-      // Note: accessToken may be null or unavailable
-      final credential = GoogleAuthProvider.credential(
-        idToken: googleAuth.idToken,
-        accessToken: googleAuth.idToken, // may be null
-      );
-
-      // 4. Sign in with Firebase
-      await FirebaseAuth.instance.signInWithCredential(credential);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Logged in with Google Successfully")),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Google Sign-In Failed: $e")));
-      log(e.toString());
-    }
-  }
-
-  Future<void> signOutGoogle() async {
-    await _googleSignIn.signOut();
-    await _auth.signOut();
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Signed out from Google")));
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Google Sign-In")),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: const BorderSide(color: Colors.grey),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                isLogin ? "Welcome Back 👋" : "Create Account ✨",
+                style:
+                const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                isLogin
+                    ? "Sign in to continue"
+                    : "Sign up with verification",
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 30),
+
+              // Email
+              TextField(
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: "Email",
+                  border: OutlineInputBorder(),
                 ),
               ),
-              icon: Image.asset(
-                "assets/google_logo.png",
-                height: 24,
-                width: 24,
-              ), // add google logo in assets
-              label: const Text("Sign in with Google"),
-              onPressed: signInWithGoogle,
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: signOutGoogle,
-              child: const Text("Sign Out"),
-            ),
-          ],
+              const SizedBox(height: 20),
+
+              // Password
+              TextField(
+                controller: _passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: "Password",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 30),
+
+              // Sign In / Sign Up button
+              isLoading
+                  ? const CircularProgressIndicator()
+                  : ElevatedButton(
+                onPressed: isLogin ? _signInWithEmail : _signUpWithEmail,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+                child: Text(isLogin ? "Sign In" : "Sign Up"),
+              ),
+
+              const SizedBox(height: 15),
+
+              // Toggle between login & signup
+              TextButton(
+                onPressed: () => setState(() => isLogin = !isLogin),
+                child: Text(isLogin
+                    ? "Don't have an account? Sign Up"
+                    : "Already have an account? Sign In"),
+              ),
+
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 20),
+
+              // Google Sign in
+              OutlinedButton.icon(
+                onPressed: _signInWithGoogle,
+                icon: const Icon(Icons.login),
+                label: const Text("Sign in with Google"),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MobileAuthPage(),)),
+                icon: const Icon(Icons.mobile_friendly),
+                label: const Text("Sign in with mobile"),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
