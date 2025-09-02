@@ -1,3 +1,5 @@
+import 'package:firebase/Api_homepage.dart';
+import 'package:firebase/signup_page.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -40,11 +42,17 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: const Text("Todo List"),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _signOut(context),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.logout),
+                onPressed: () => _signOut(context),
+              ),
+              IconButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ApiHomepage(),)), icon: Icon(Icons.api))
+            ],
           ),
         ],
+
       ),
       body: Column(
         children: [
